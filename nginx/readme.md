@@ -27,3 +27,12 @@ kubectl create secret tls ingress-tls --cert=ingress-tls.crt --key=ingress-tls.k
 kubectl apply -f nginx.yaml
 ```
 
+## Add host to your local machine
+Check minikube ip
+```minikube ip -p node
+```
+
+Add host ```levietnam.local```
+```
+echo "<minikube_ip> levietnam.local" | sudo tee -a /etc/hosts > /dev/null
+```
