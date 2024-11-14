@@ -1,0 +1,922 @@
+---
+# Source: postgresql/templates/backup/networkpolicy.yaml
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: postgresql-primary-pgdumpall
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: pg_dumpall
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: postgresql
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/component: pg_dumpall
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 5432
+          protocol: TCP
+        - port: 53
+          protocol: TCP
+        - port: 53
+          protocol: UDP
+---
+# Source: postgresql/templates/primary/networkpolicy.yaml
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: postgresql-primary
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: primary
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: postgresql
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/component: primary
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+    - {}
+  ingress:
+    - ports:
+        - port: 5432
+---
+# Source: postgresql/templates/read/networkpolicy.yaml
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: postgresql-read
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: read
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: postgresql
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/component: read
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+    - {}
+  ingress:
+    - ports:
+        - port: 5432
+---
+# Source: postgresql/templates/primary/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgresql-primary
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: primary
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: postgresql
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/component: primary
+---
+# Source: postgresql/templates/read/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgresql-read
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: read
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: postgresql
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/component: read
+---
+# Source: postgresql/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgresql
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+automountServiceAccountToken: false
+---
+# Source: postgresql/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresql
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+type: Opaque
+data:
+  postgres-password: "c0JoOTRMRlFDcg=="
+  replication-password: "cG9zdGdyZXNxbA=="
+  # We don't auto-generate LDAP password when it's not provided as we do for other passwords
+---
+# Source: postgresql/templates/backup/pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgresql-primary-pgdumpall
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: pg_dumpall
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "8Gi"
+  storageClassName: local-path
+---
+# Source: postgresql/templates/primary/svc-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-primary-hl
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: primary
+  annotations:
+spec:
+  type: ClusterIP
+  clusterIP: None
+  # We want all pods in the StatefulSet to have their addresses published for
+  # the sake of the other Postgresql pods even before they're ready, since they
+  # have to be able to talk to each other in order to become ready.
+  publishNotReadyAddresses: true
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+  selector:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: primary
+---
+# Source: postgresql/templates/primary/svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-primary
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: primary
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+      nodePort: null
+  selector:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: primary
+---
+# Source: postgresql/templates/read/svc-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-read-hl
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: read
+  annotations:
+spec:
+  type: ClusterIP
+  clusterIP: None
+  # We want all pods in the StatefulSet to have their addresses published for
+  # the sake of the other Postgresql pods even before they're ready, since they
+  # have to be able to talk to each other in order to become ready.
+  publishNotReadyAddresses: true
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+  selector:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: read
+---
+# Source: postgresql/templates/read/svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-read
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: read
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+      nodePort: null
+  selector:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: read
+---
+# Source: postgresql/templates/primary/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql-primary
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: primary
+spec:
+  replicas: 1
+  serviceName: postgresql-primary-hl
+  updateStrategy:
+    rollingUpdate: {}
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: postgresql
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/component: primary
+  template:
+    metadata:
+      name: postgresql-primary
+      labels:
+        app.kubernetes.io/instance: postgresql
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: postgresql
+        app.kubernetes.io/version: 17.0.0
+        helm.sh/chart: postgresql-16.1.1
+        app.kubernetes.io/component: primary
+    spec:
+      serviceAccountName: postgresql
+      
+      automountServiceAccountToken: false
+      affinity:
+        podAffinity:
+          
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: postgresql
+                    app.kubernetes.io/name: postgresql
+                    app.kubernetes.io/component: primary
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: Always
+        supplementalGroups: []
+        sysctls: []
+      hostNetwork: false
+      hostIPC: false
+      initContainers:
+        - name: init-chmod-data
+          image: docker.io/bitnami/os-shell:12-debian-12-r31
+          imagePullPolicy: "IfNotPresent"
+          resources:
+            limits:
+              cpu: 150m
+              ephemeral-storage: 2Gi
+              memory: 192Mi
+            requests:
+              cpu: 100m
+              ephemeral-storage: 50Mi
+              memory: 128Mi
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              chown 1001:1001 /bitnami/postgresql
+              mkdir -p /bitnami/postgresql/data
+              chmod 700 /bitnami/postgresql/data
+              find /bitnami/postgresql -mindepth 1 -maxdepth 1 -not -name "conf" -not -name ".snapshot" -not -name "lost+found" | \
+                xargs -r chown -R 1001:1001
+              chmod -R 777 /dev/shm
+              cp /tmp/certs/* /opt/bitnami/postgresql/certs/
+              chown -R 1001:1001 /opt/bitnami/postgresql/certs/
+              chmod 600 /opt/bitnami/postgresql/certs/tls.key
+          securityContext:
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: empty-dir
+              mountPath: /tmp
+              subPath: tmp-dir
+            - name: data
+              mountPath: /bitnami/postgresql
+            - name: dshm
+              mountPath: /dev/shm
+            - name: raw-certificates
+              mountPath: /tmp/certs
+            - name: postgresql-certificates
+              mountPath: /opt/bitnami/postgresql/certs
+      containers:
+        - name: postgresql
+          image: docker.io/bitnami/postgresql:17.0.0-debian-12-r9
+          imagePullPolicy: "IfNotPresent"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: true
+            runAsUser: 1001
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: BITNAMI_DEBUG
+              value: "false"
+            - name: POSTGRESQL_PORT_NUMBER
+              value: "5432"
+            - name: POSTGRESQL_VOLUME_DIR
+              value: "/bitnami/postgresql"
+            - name: PGDATA
+              value: "/bitnami/postgresql/data"
+            # Authentication
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql
+                  key: postgres-password
+            # Replication
+            - name: POSTGRES_REPLICATION_MODE
+              value: "master"
+            - name: POSTGRES_REPLICATION_USER
+              value: "repl_user"
+            - name: POSTGRES_REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql
+                  key: replication-password
+            - name: POSTGRES_CLUSTER_APP_NAME
+              value: my_application
+            # LDAP
+            - name: POSTGRESQL_ENABLE_LDAP
+              value: "no"
+            # TLS
+            - name: POSTGRESQL_ENABLE_TLS
+              value: "yes"
+            - name: POSTGRESQL_TLS_PREFER_SERVER_CIPHERS
+              value: "yes"
+            - name: POSTGRESQL_TLS_CERT_FILE
+              value: /opt/bitnami/postgresql/certs/tls.crt
+            - name: POSTGRESQL_TLS_KEY_FILE
+              value: /opt/bitnami/postgresql/certs/tls.key
+            - name: POSTGRESQL_TLS_CA_FILE
+              value: /opt/bitnami/postgresql/certs/ca.crt
+            # Audit
+            - name: POSTGRESQL_LOG_HOSTNAME
+              value: "false"
+            - name: POSTGRESQL_LOG_CONNECTIONS
+              value: "false"
+            - name: POSTGRESQL_LOG_DISCONNECTIONS
+              value: "false"
+            - name: POSTGRESQL_PGAUDIT_LOG_CATALOG
+              value: "off"
+            # Others
+            - name: POSTGRESQL_CLIENT_MIN_MESSAGES
+              value: "error"
+            - name: POSTGRESQL_SHARED_PRELOAD_LIBRARIES
+              value: "pgaudit"
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+          livenessProbe:
+            failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "postgres" -d "sslcert=/opt/bitnami/postgresql/certs/tls.crt sslkey=/opt/bitnami/postgresql/certs/tls.key" -h 127.0.0.1 -p 5432
+          readinessProbe:
+            failureThreshold: 6
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - -e
+                - |
+                  exec pg_isready -U "postgres" -d "sslcert=/opt/bitnami/postgresql/certs/tls.crt sslkey=/opt/bitnami/postgresql/certs/tls.key" -h 127.0.0.1 -p 5432
+                  [ -f /opt/bitnami/postgresql/tmp/.initialized ] || [ -f /bitnami/postgresql/.initialized ]
+          resources:
+            limits:
+              cpu: 3
+              memory: 1024Mi
+            requests:
+              cpu: 2
+              memory: 512Mi
+          volumeMounts:
+            - name: empty-dir
+              mountPath: /tmp
+              subPath: tmp-dir
+            - name: empty-dir
+              mountPath: /opt/bitnami/postgresql/conf
+              subPath: app-conf-dir
+            - name: empty-dir
+              mountPath: /opt/bitnami/postgresql/tmp
+              subPath: app-tmp-dir
+            - name: postgresql-certificates
+              mountPath: /opt/bitnami/postgresql/certs
+              readOnly: true
+            - name: dshm
+              mountPath: /dev/shm
+            - name: data
+              mountPath: /bitnami/postgresql
+      volumes:
+        - name: empty-dir
+          emptyDir: {}
+        - name: raw-certificates
+          secret:
+            secretName: postgresql-tls
+        - name: postgresql-certificates
+          emptyDir: {}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: data
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "8Gi"
+        storageClassName: local-path
+---
+# Source: postgresql/templates/read/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql-read
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: read
+spec:
+  replicas: 1
+  serviceName: postgresql-read-hl
+  updateStrategy:
+    rollingUpdate: {}
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: postgresql
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/component: read
+  template:
+    metadata:
+      name: postgresql-read
+      labels:
+        app.kubernetes.io/instance: postgresql
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: postgresql
+        app.kubernetes.io/version: 17.0.0
+        helm.sh/chart: postgresql-16.1.1
+        app.kubernetes.io/component: read
+    spec:
+      serviceAccountName: postgresql
+      
+      automountServiceAccountToken: false
+      affinity:
+        podAffinity:
+          
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: postgresql
+                    app.kubernetes.io/name: postgresql
+                    app.kubernetes.io/component: read
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: Always
+        supplementalGroups: []
+        sysctls: []
+      hostNetwork: false
+      hostIPC: false
+      initContainers:
+        - name: init-chmod-data
+          image: docker.io/bitnami/os-shell:12-debian-12-r31
+          imagePullPolicy: "IfNotPresent"
+          resources:
+            limits:
+              cpu: 3
+              memory: 1024Mi
+            requests:
+              cpu: 2
+              memory: 512Mi
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              chown 1001:1001 /bitnami/postgresql
+              mkdir -p /bitnami/postgresql/data
+              chmod 700 /bitnami/postgresql/data
+              find /bitnami/postgresql -mindepth 1 -maxdepth 1 -not -name "conf" -not -name ".snapshot" -not -name "lost+found" | \
+                xargs -r chown -R 1001:1001
+              chmod -R 777 /dev/shm
+              cp /tmp/certs/* /opt/bitnami/postgresql/certs/
+              chown -R 1001:1001 /opt/bitnami/postgresql/certs/
+              chmod 600 /opt/bitnami/postgresql/certs/tls.key
+          securityContext:
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: empty-dir
+              mountPath: /tmp
+              subPath: tmp-dir
+            - name: data
+              mountPath: /bitnami/postgresql
+            - name: dshm
+              mountPath: /dev/shm
+            - name: raw-certificates
+              mountPath: /tmp/certs
+            - name: postgresql-certificates
+              mountPath: /opt/bitnami/postgresql/certs
+      containers:
+        - name: postgresql
+          image: docker.io/bitnami/postgresql:17.0.0-debian-12-r9
+          imagePullPolicy: "IfNotPresent"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: true
+            runAsUser: 1001
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: BITNAMI_DEBUG
+              value: "false"
+            - name: POSTGRESQL_PORT_NUMBER
+              value: "5432"
+            - name: POSTGRESQL_VOLUME_DIR
+              value: "/bitnami/postgresql"
+            - name: PGDATA
+              value: "/bitnami/postgresql/data"
+            # Authentication
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql
+                  key: postgres-password
+            # Replication
+            - name: POSTGRES_REPLICATION_MODE
+              value: "slave"
+            - name: POSTGRES_REPLICATION_USER
+              value: "repl_user"
+            - name: POSTGRES_REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql
+                  key: replication-password
+            - name: POSTGRES_CLUSTER_APP_NAME
+              value: my_application
+            - name: POSTGRES_MASTER_HOST
+              value: postgresql-primary
+            - name: POSTGRES_MASTER_PORT_NUMBER
+              value: "5432"
+            # TLS
+            - name: POSTGRESQL_ENABLE_TLS
+              value: "yes"
+            - name: POSTGRESQL_TLS_PREFER_SERVER_CIPHERS
+              value: "yes"
+            - name: POSTGRESQL_TLS_CERT_FILE
+              value: /opt/bitnami/postgresql/certs/tls.crt
+            - name: POSTGRESQL_TLS_KEY_FILE
+              value: /opt/bitnami/postgresql/certs/tls.key
+            - name: POSTGRESQL_TLS_CA_FILE
+              value: /opt/bitnami/postgresql/certs/ca.crt
+            # Audit
+            - name: POSTGRESQL_LOG_HOSTNAME
+              value: "false"
+            - name: POSTGRESQL_LOG_CONNECTIONS
+              value: "false"
+            - name: POSTGRESQL_LOG_DISCONNECTIONS
+              value: "false"
+            - name: POSTGRESQL_PGAUDIT_LOG_CATALOG
+              value: "off"
+            # Others
+            - name: POSTGRESQL_CLIENT_MIN_MESSAGES
+              value: "error"
+            - name: POSTGRESQL_SHARED_PRELOAD_LIBRARIES
+              value: "pgaudit"
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+          livenessProbe:
+            failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "postgres" -d "sslcert=/opt/bitnami/postgresql/certs/tls.crt sslkey=/opt/bitnami/postgresql/certs/tls.key" -h 127.0.0.1 -p 5432
+          readinessProbe:
+            failureThreshold: 6
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - -e
+                - |
+                  exec pg_isready -U "postgres" -d "sslcert=/opt/bitnami/postgresql/certs/tls.crt sslkey=/opt/bitnami/postgresql/certs/tls.key" -h 127.0.0.1 -p 5432
+                  [ -f /opt/bitnami/postgresql/tmp/.initialized ] || [ -f /bitnami/postgresql/.initialized ]
+          resources:
+            limits:
+              cpu: 3
+              memory: 1024Mi
+            requests:
+              cpu: 2
+              memory: 512Mi
+          volumeMounts:
+            - name: empty-dir
+              mountPath: /tmp
+              subPath: tmp-dir
+            - name: empty-dir
+              mountPath: /opt/bitnami/postgresql/conf
+              subPath: app-conf-dir
+            - name: empty-dir
+              mountPath: /opt/bitnami/postgresql/tmp
+              subPath: app-tmp-dir
+            - name: postgresql-certificates
+              mountPath: /opt/bitnami/postgresql/certs
+              readOnly: true
+            - name: dshm
+              mountPath: /dev/shm
+            - name: data
+              mountPath: /bitnami/postgresql
+      volumes:
+        - name: raw-certificates
+          secret:
+            secretName: postgresql-tls
+        - name: postgresql-certificates
+          emptyDir: {}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+        - name: empty-dir
+          emptyDir: {}
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: data
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "8Gi"
+        storageClassName: local-path
+---
+# Source: postgresql/templates/backup/cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgresql-primary-pgdumpall
+  namespace: "database"
+  labels:
+    app.kubernetes.io/instance: postgresql
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/version: 17.0.0
+    helm.sh/chart: postgresql-16.1.1
+    app.kubernetes.io/component: pg_dumpall
+  annotations:
+    {}
+spec:
+  schedule: "@daily"
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/instance: postgresql
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: postgresql
+            app.kubernetes.io/version: 17.0.0
+            helm.sh/chart: postgresql-16.1.1
+            app.kubernetes.io/component: pg_dumpall
+          annotations:
+            {}
+        spec:
+          
+          containers:
+          - name: postgresql-primary-pgdumpall
+            image: docker.io/bitnami/postgresql:17.0.0-debian-12-r9
+            imagePullPolicy: "IfNotPresent"
+            env:
+              - name: PGUSER
+                value: postgres
+              - name: PGPASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: postgresql
+                    key: postgres-password
+              - name: PGHOST
+                value: postgresql-primary
+              - name: PGPORT
+                value: "5432"
+              - name: PGDUMP_DIR
+                value: /backup/pgdump
+              - name:  PGSSLROOTCERT
+                value: /tmp/certs/ca.crt
+            command:
+              - /bin/sh
+              - -c
+              - pg_dumpall --clean --if-exists --load-via-partition-root --quote-all-identifiers
+                --no-password --file=${PGDUMP_DIR}/pg_dumpall-$(date '+%Y-%m-%d-%H-%M').pgdump
+            volumeMounts:
+              - name: raw-certificates
+                mountPath: /tmp/certs
+              - name: datadir
+                mountPath: /backup/pgdump
+                subPath: 
+              - name: empty-dir
+                mountPath: /tmp
+                subPath: tmp-dir
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              privileged: false
+              readOnlyRootFilesystem: true
+              runAsGroup: 1001
+              runAsNonRoot: true
+              runAsUser: 1001
+              seLinuxOptions: {}
+              seccompProfile:
+                type: RuntimeDefault
+            resources:
+              limits:
+                cpu: 150m
+                ephemeral-storage: 2Gi
+                memory: 192Mi
+              requests:
+                cpu: 100m
+                ephemeral-storage: 50Mi
+                memory: 128Mi
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1001
+          volumes:
+            - name: raw-certificates
+              secret:
+                secretName: postgresql-tls
+            - name: datadir
+              persistentVolumeClaim:
+                claimName: postgresql-primary-pgdumpall
+            - name: empty-dir
+              emptyDir: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: postgresql-tls-issuer
+  namespace: database
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: postgresql-tls-cert
+  namespace: database
+spec:
+  secretName: postgresql-tls # Name of the Secret where the certificate will be stored
+  issuerRef:
+    name: postgresql-tls-issuer  # The Issuer that will issue the certificate
+    kind: Issuer
+  commonName: "postgres"
