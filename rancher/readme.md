@@ -5,7 +5,7 @@ The resources created by the Chart should be installed. This should always be ca
 ```
 kubectl create namespace cattle-system
 ```
-### Deploy Rancher
+### Apply chart
 ```
 kubectl apply -f rancher.yaml
 ```
