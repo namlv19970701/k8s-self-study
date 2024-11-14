@@ -1,4 +1,6 @@
 # k8s-self-study
+In progress...
+
 ## Prerequisite
 - Ubuntu
 - Kubectl
@@ -26,4 +28,3 @@ minikube dashboard -p k8s-node
 
 ### Demo
 https://www.youtube.com/watch?v=nJVRJt4G-l0
-
