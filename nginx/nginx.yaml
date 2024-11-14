@@ -309,7 +309,7 @@ spec:
   issuerRef:
     name: nginx-tls-issuer  # The Issuer that will issue the certificate
     kind: Issuer
-  commonName: nginx.levietnam.com
+  commonName: nginx
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer
