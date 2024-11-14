@@ -7,19 +7,9 @@ NGINX requires certificate files (SSL/TLS certificates) when you want to set up 
 minikube addons enable ingress -p k8s-node
 ```
 
-## Create TLS certificates
-```
-openssl req -x509 -newkey rsa:4096 -keyout ingress-tls.key -out ingress-tls.crt -days 365 -nodes -subj "/CN=levietnam.local"
-```
-
 ## Create namespace for Nginx
 ```
-kubectl create namespace web-servers
-```
-
-## Create secret on ```web-servers``` namespace
-```
-kubectl create secret tls ingress-tls --cert=ingress-tls.crt --key=ingress-tls.key -n web-servers
+kubectl create namespace webservers
 ```
 
 ## Apply nginx chart 
@@ -34,5 +24,5 @@ Check minikube ip
 
 Add host ```levietnam.local```
 ```
-echo "<minikube_ip> levietnam.local" | sudo tee -a /etc/hosts > /dev/null
+echo "<minikube_ip> nginx.levietnam.local" | sudo tee -a /etc/hosts > /dev/null
 ```
