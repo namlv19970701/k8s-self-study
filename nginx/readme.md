@@ -1,6 +1,8 @@
 # Deploy Nginx
 
 NGINX requires certificate files (SSL/TLS certificates) when you want to set up HTTPS (secure HTTP) for a website or web application.
+## Prerequisite
+- ```cert-manager``` chart
 
 ## Enable addons ingress in minikube
 ```
